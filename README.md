@@ -175,7 +175,7 @@ Running through docker run, you could access the service as follows:
 docker run --link virtuoso:database \
        -v `pwd`:/app \
        -p 8888:80 \
-       -p 9229:9229 \
+       -p 127.0.0.1:9229:9229 \
        -e NODE_ENV=development \
        --name my-js-test \
        semtech/mu-javascript-template
@@ -190,7 +190,7 @@ When running inside a mu.semte.ch stack, you could mount your sources and connec
       image: semtech/mu-javascript-template
       ports:
         - 8888:80
-        - 9229:9229
+        - 127.0.0.1:9229:9229
       environment:
         NODE_ENV: "development"
       links:
