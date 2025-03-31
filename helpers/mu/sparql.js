@@ -28,9 +28,8 @@ function update(queryString, extraHeaders = {}, connectionOptions = {}) {
   if (LOG_SPARQL_UPDATES) {
     console.log(queryString);
   }
-  return executeQuery(queryString);
+  return executeQuery(queryString, options);
 };
-
 
 function defaultHeaders() {
   const headers = new Headers();
@@ -210,10 +209,23 @@ function sparqlEscapeDate( value ){
   return '"' + new Date(value).toISOString().substring(0, 10) + '"^^xsd:date'; // only keep 'YYYY-MM-DD' portion of the string
 };
 
+/**
+ * Escape date string or date object into an xsd:dateTime for use in a SPARQL string.
+ *
+ * @param { Date | string | number } value Date representation
+ * (understood by `new Date`) to convert.
+ * @return { string } Date representation for SPARQL query.
+ */
 function sparqlEscapeDateTime( value ){
   return '"' + new Date(value).toISOString() + '"^^xsd:dateTime';
 };
 
+/**
+ * Escape boolean-like value into xsd:boolean for use in a SPARQL string.
+ *
+ * @param { any } value Boolean-like value, anything javascript finds truethy is true.
+ * @return { string } Boolean representation for SPARQL query.
+ */
 function sparqlEscapeBool( value ){
   return value ? '"true"^^xsd:boolean' : '"false"^^xsd:boolean';
 };
@@ -251,6 +263,7 @@ const exports = {
   sparqlEscape: sparqlEscape,
   sparqlEscapeString: sparqlEscapeString,
   sparqlEscapeUri: sparqlEscapeUri,
+  sparqlEscapeDecimal: sparqlEscapeDecimal,
   sparqlEscapeInt: sparqlEscapeInt,
   sparqlEscapeFloat: sparqlEscapeFloat,
   sparqlEscapeDate: sparqlEscapeDate,
@@ -274,4 +287,3 @@ export {
   sparqlEscapeDateTime,
   sparqlEscapeBool
 };
-
