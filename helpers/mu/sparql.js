@@ -15,16 +15,44 @@ const RETRY_TIMEOUT_INCREMENT_FACTOR = env.get('MU_QUERY_RETRY_TIMEOUT_INCREMENT
 
 //==-- logic --==//
 
-// executes a query (you can use the template syntax)
-function query( queryString, extraHeaders = {}, connectionOptions = {} ) {
+/**
+ * Executes a SPARQL query against a given endpoint (you can use the template syntax).
+ *
+ * @param {string} queryString - The SPARQL query to execute.
+ * @param {object} [options={}] - Optional parameters for query execution.
+ * @param {string} [options.sparqlEndpoint=MU_SPARQL_ENDPOINT] - The SPARQL endpoint to send the request to.
+ * @param {boolean} [options.sudo=false] - Whether to include the 'mu-auth-sudo' header.
+ * @param {string} [options.scope] - Authentication scope to use. Falls back to DEFAULT_MU_AUTH_SCOPE if not provided.
+ * @param {object} [options.extraHeaders={}] - Additional headers to include in the request.
+ * @param {string} [options.authUser] - Username for HTTP authentication.
+ * @param {string} [options.authPassword] - Password for HTTP authentication.
+ * @param {"basic"|"digest"} [options.authType="digest"] - Type of HTTP authentication (default is digest).
+ * @returns {Promise<any>} - The parsed JSON response from the SPARQL endpoint.
+ * @throws {Error} - Throws an error if the request fails and cannot be retried.
+ */
+function query( queryString, options = {} ) {
   if (LOG_SPARQL_QUERIES) {
     console.log(queryString);
   }
-  return executeQuery(queryString, extraHeaders, connectionOptions);
+  return executeQuery(queryString, options);
 };
 
-// executes an update query
-function update(queryString, extraHeaders = {}, connectionOptions = {}) {
+/**
+ * Executes a SPARQL query against a given endpoint (you can use the template syntax).
+ *
+ * @param {string} queryString - The SPARQL query to execute.
+ * @param {object} [options={}] - Optional parameters for query execution.
+ * @param {string} [options.sparqlEndpoint=MU_SPARQL_ENDPOINT] - The SPARQL endpoint to send the request to.
+ * @param {boolean} [options.sudo=false] - Whether to include the 'mu-auth-sudo' header.
+ * @param {string} [options.scope] - Authentication scope to use. Falls back to DEFAULT_MU_AUTH_SCOPE if not provided.
+ * @param {object} [options.extraHeaders={}] - Additional headers to include in the request.
+ * @param {string} [options.authUser] - Username for HTTP authentication.
+ * @param {string} [options.authPassword] - Password for HTTP authentication.
+ * @param {"basic"|"digest"} [options.authType="digest"] - Type of HTTP authentication (default is digest).
+ * @returns {Promise<any>} - The parsed JSON response from the SPARQL endpoint.
+ * @throws {Error} - Throws an error if the request fails and cannot be retried.
+ */
+function update(queryString, options = {}) {
   if (LOG_SPARQL_UPDATES) {
     console.log(queryString);
   }
@@ -45,13 +73,46 @@ function defaultHeaders() {
   return headers;
 }
 
-async function executeQuery(queryString, extraHeaders = {}, connectionOptions = {}, attempt = 0)
+/**
+ * Executes a SPARQL query against a given endpoint.
+ *
+ * @param {string} queryString - The SPARQL query to execute.
+ * @param {object} [options={}] - Optional parameters for query execution.
+ * @param {string} [options.sparqlEndpoint=MU_SPARQL_ENDPOINT] - The SPARQL endpoint to send the request to.
+ * @param {boolean} [options.sudo=false] - Whether to include the 'mu-auth-sudo' header.
+ * @param {string} [options.scope] - Authentication scope to use. Falls back to DEFAULT_MU_AUTH_SCOPE if not provided.
+ * @param {object} [options.extraHeaders={}] - Additional headers to include in the request.
+ * @param {string} [options.authUser] - Username for HTTP authentication.
+ * @param {string} [options.authPassword] - Password for HTTP authentication.
+ * @param {"basic"|"digest"} [options.authType="digest"] - Type of HTTP authentication (default is digest).
+ * @param {number} [attempt=0] - Current retry attempt.
+ * @returns {Promise<any>} - The parsed JSON response from the SPARQL endpoint.
+ * @throws {Error} - Throws an error if the request fails and cannot be retried.
+ */
+async function executeQuery(queryString, options = {}, attempt = 0)
 {
-  const sparqlEndpoint = connectionOptions.sparqlEndpoint ?? MU_SPARQL_ENDPOINT;
+  const sparqlEndpoint = options.sparqlEndpoint ?? MU_SPARQL_ENDPOINT;
   const headers = defaultHeaders();
+
+  const extraHeaders = options.extraHeaders ?? {};
   for (const key of Object.keys(extraHeaders)) {
-    headers.append(key, extraHeaders[key]);
+    headers.append(key, options.extraHeaders[key]);
   }
+  if (options.sudo === true) {
+    if (env.get("ALLOW_MU_AUTH_SUDO").asBool()) {
+      headers.set('mu-auth-sudo', "true");
+    }
+    else {
+      throw new Error("Error, sudo request but service lacks ALLOW_MU_AUTH_SUDO header");
+    }
+  }
+
+  if (options.scope) {
+    headers.set('mu-auth-scope', options.scope);
+  } else if (env.get("DEFAULT_MU_AUTH_SCOPE")) {
+    headers.set('mu-auth-scope', env.get("DEFAULT_MU_AUTH_SCOPE"));
+  }
+
   if (DEBUG_AUTH_HEADERS) {
     const stringifiedHeaders = Array.from(headers.entries())
       .filter(([key]) => key.startsWith("mu-"))
@@ -67,11 +128,11 @@ async function executeQuery(queryString, extraHeaders = {}, connectionOptions = 
     headers.append("Content-Length", formData.toString().length.toString());
 
     let response;
-    if (connectionOptions.authUser && connectionOptions.authPassword) {
+    if (options.authUser && options.authPassword) {
       const client = new DigestFetch(
-        connectionOptions.authUser,
-        connectionOptions.authPassword,
-        { basic: connectionOptions.authType === "basic" }
+        options.authUser,
+        options.authPassword,
+        { basic: options.authType === "basic" }
       );
       response = await client.fetch(sparqlEndpoint, {
         method: "POST",
@@ -92,17 +153,16 @@ async function executeQuery(queryString, extraHeaders = {}, connectionOptions = 
       throw new Error(`HTTP Error Response: ${response.status} ${response.statusText}`);
     }
   } catch (ex) {
-    if (mayRetry(ex, attempt, connectionOptions)) {
+    if (mayRetry(ex, attempt, options)) {
       attempt += 1;
 
       const sleepTime = nextAttemptTimeout(attempt);
       console.log(`Sleeping ${sleepTime} ms before next attempt`);
       await new Promise((r) => setTimeout(r, sleepTime));
 
-      return await executeRawQuery(
+      return await executeQuery(
         queryString,
-        extraHeaders,
-        connectionOptions,
+        options,
         attempt
       );
     } else {

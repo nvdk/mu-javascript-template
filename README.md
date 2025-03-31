@@ -202,7 +202,7 @@ mu.app.get('/', function( req, res ) {
 ```
 
 The following helper functions are provided by the template
-  - `query(query, options) => Promise`: Function for sending queries to the triplestore.  Options is an object which may include `sudo` and `scope` keys.
+  - `query(queryString, options) => Promise`: Function for sending queries to the triplestore.  Options is an object which may include `sudo` and `scope` keys.
   - `update(query, options) => Promise`: Function for sending updates to the triplestore.  Options is an object which may include `sudo` and `scope` keys.
   - `uuid() => string`: Generates a random UUID (e.g. to construct new resource URIs)
 
@@ -216,6 +216,49 @@ The following SPARQL escape helpers are provided to construct safe SPARQL query 
   - `sparqlEscapeDateTime(value) => string`
   - `sparqlEscapeBool(value) => string`: The given value is evaluated to a boolean value in javascript. E.g. the string value `'0'` evaluates to `false` in javascript.
   - `sparqlEscape(value, type) => string`: Function to escape a value in SPARQL according to the given type. Type must be one of `'string'`, `'uri'`, `'int'`, `'float'`, `'date'`, `'dateTime'`, `'bool'`.
+
+### Executing queries
+
+#### Example 
+```js
+import { query } from 'mu';
+
+const queryString = `
+  PREFIX dbo: <http://dbpedia.org/ontology/>
+  SELECT ?name WHERE {
+    ?person a dbo:Person ;
+            dbo:birthPlace <http://dbpedia.org/resource/Belgium> ;
+            dbo:name ?name .
+  } LIMIT 10
+`;
+
+const options = {
+  scope: "my-scope",
+  extraHeaders: {
+    "X-Custom-Header": "value"
+  },
+};
+
+response = await query(queryString, options);
+```
+
+#### Parameters
+The `query` and `update` helpers accept the same parameters.
+
+| Parameter                | Type      | Default              | Description                                                                        |
+|--------------------------|-----------|----------------------|------------------------------------------------------------------------------------|
+| `queryString`            | `string`  | _Required_           | The SPARQL query to execute.                                                       |
+| `options`                | `object`  | `{}`                 | Optional configuration settings.                                                   |
+| `options.sudo`           | `boolean` | `false`              | Whether to enable sudo mode (requires environment permission).                     |
+| `options.scope`          | `string`  | _(Env default)_      | The authentication scope to use. Defaults to `DEFAULT_MU_AUTH_SCOPE` if available. |
+
+#### Experimental Parameters
+| `options.sparqlEndpoint` | `string`  | `MU_SPARQL_ENDPOINT` | The SPARQL endpoint to send the request to.                                        |
+| `options.extraHeaders`   | `object`  | `{}`                 | Additional headers to send in the request.                                         |
+| `options.authUser`       | `string`  | `undefined`          | The username for HTTP authentication (optional).                                   |
+| `options.authPassword`   | `string`  | `undefined`          | The password for HTTP authentication (optional).                                   |
+| `options.authType`       | `string`  | "digest"`            | The type of authentication to use. (`"digest"` or `"basic"`)                       |
+
 
 ### Error handling
 The template offers [an error handler](https://expressjs.com/en/guide/error-handling.html) to send error responses in a JSON:API compliant way. The handler can be imported from `'mu'` and need to be loaded at the end.
