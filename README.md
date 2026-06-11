@@ -278,6 +278,7 @@ The following environment variables can be configured:
   - `MAX_BODY_SIZE` (default: `100kb`): max size of the request body. See [ExpressJS documentation](https://expressjs.com/en/resources/middleware/body-parser.html#limit).
   - `HOST` (default: `0.0.0.0`): The hostname you want the service to bind to.
   - `PORT` (default: `80`): The port you want the service to bind to.
+  - `MU_SPARQL_ENDPOINT` (default: `http://database:8890/sparql`): SPARQL endpoint to send queries to.
   - `ALLOW_MU_AUTH_SUDO`: Allow sudo queries when the service requests it.
   - `DEFAULT_MU_AUTH_SCOPE`: Default mu-auth-scope to use for calls.
 
