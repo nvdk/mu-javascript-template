@@ -11,13 +11,13 @@ cd /usr/src/app/app/
 if [ -f /usr/src/app/app/package.json ]
 then
   PACKAGE_TYPE=`cat /usr/src/app/app/package.json | jq -r ".type"`
-  if [[ "$PACKAGE_TYPE" -eq "null" ]]
+  if [[ "$PACKAGE_TYPE" == "null" ]]
   then
     echo '[WARNING] Adding "type": "module" to your package.json.'
     echo 'To remove this warning, add "type": "module" at the same level as "name" in your package.json'
     sed -i '0,/{/s/{/{\n  "type": "module",/' /usr/src/app/app/package.json
   else
-    if [[ "$PACKAGE_TYPE" -ne "module" ]]
+    if [[ "$PACKAGE_TYPE" != "module" ]]
     then
       echo '[WARNING] DIFFERENT TYPE THAN "module" IN package.json; CONTINUING WITH UNSPECIFIED BEHAVIOUR'
     fi
