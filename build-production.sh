@@ -13,12 +13,15 @@ cd /usr/src/app
 rm -rf ./app /app.original
 
 docker-rsync --delete --exclude node_modules /app/ /usr/src/app/app/
-mkdir -p /config /config.original
 
+# Ship the default configuration in /config for services reading it directly.
+# config-overrides.js ignores files in /config identical to these defaults.
+mkdir -p /config
+rm -f /usr/src/app/config-defaults.sha256
 if [[ "$(ls -A /app/config/ 2> /dev/null)" ]]
 then
-    cp -r /app/config/* /config.original/
     cp -r /app/config/* /config/
+    (cd /app/config && find . -type f -print0 | sort -z | xargs -0 -r sha256sum) > /usr/src/app/config-defaults.sha256
 fi
 
 cp -r /app /app.original
@@ -38,3 +41,7 @@ fi
 ./validate-package-json.sh
 
 ./transpile-sources.sh
+
+# Allow running as an arbitrary user in the root group (e.g. OpenShift), which
+# needs write access for development mode only.
+chgrp -R 0 /usr/src/app/app /usr/src/dist && chmod -R g=u /usr/src/app/app /usr/src/dist

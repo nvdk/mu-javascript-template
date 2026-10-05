@@ -70,13 +70,6 @@ HAS_PACKAGE_LOCK=([ -f /app/package-lock.json ])
 ## not remove anything.
 docker-rsync --delete --exclude node_modules /app/ /usr/src/app/app/
 
-## Copy config folder
-if [[ "$(ls -A /config/ 2> /dev/null)" ]]
-then
-    mkdir -p ./app/config/
-    cp -rf /config/* ./app/config/
-fi
-
 # Determine npm command and install dependencies
 if [ -f /app/package.json ]
 then
@@ -120,6 +113,7 @@ else
     cd /usr/src/dist/
     node \
         --inspect="0.0.0.0:9229" \
+        --import /usr/src/app/config-overrides.js \
         ./start-server.js &
     NODE_PID=$!
     trap 'kill -s SIGUSR2 $NODE_PID' SIGUSR2 # SIGINT and SIGTERM are not necessary here now
