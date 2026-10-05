@@ -4,6 +4,7 @@ steps:
     settings:
       repo: ${CI_REPO/mu-semtech/semtech}
       tags: latest
+      platforms: linux/amd64,linux/arm64
       username:
         from_secret: docker_username
       password:
