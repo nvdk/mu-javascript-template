@@ -23,7 +23,7 @@ function docker-rsync() {
   local non_root_options=()
   if [ "$(id -u)" != "0" ]
   then
-    non_root_options=(--no-perms --omit-dir-times)
+    non_root_options=(--no-perms --omit-dir-times --omit-link-times)
   fi
   rsync -aHAWXS --numeric-ids --info= --no-compress --filter='-x security.selinux' "${non_root_options[@]}" "$@"
 }
