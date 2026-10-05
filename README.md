@@ -185,6 +185,19 @@ beforeExit( async () => {
 });
 ```
 
+### Upgrade from v1 to v2
+Most microservices only need to bump the version in their `Dockerfile`. Check the following if your microservice relies on any of them:
+
+- **Node.js 22**: the template runs on Node.js 22 (was 20) and Babel and TypeScript target it. Make sure your dependencies support Node.js 22.
+- **Slim base image**: the image no longer includes build tools such as `python3`, `make` and `g++`. Dependencies with native code need these installed from `on-build.sh`, see [Custom build commands](#custom-build-commands).
+- **`on-build.sh` runs earlier**: it runs before your dependencies are installed and your sources are transpiled, see [Custom build commands](#custom-build-commands).
+- **Failing builds fail**: errors while installing dependencies or transpiling sources now stop the image build. Previously these could produce an image which did not start.
+- **`/config` is resolved at runtime**: overrides which are imported keep working. Files read with `fs` should be read from `/config` directly, see [Migrating from earlier versions](#migrating-from-earlier-versions).
+- **`sparql-client-2` was removed**: `query` and `update` send requests with the built-in `fetch`.
+  - `newSparqlClient` is no longer exported.
+  - `sparql-client-2` is no longer installed. If your microservice imports it, add it to the dependencies in your own `package.json`.
+  - A sudo query from a microservice without `ALLOW_MU_AUTH_SUDO` throws an `Error` instead of a string.
+
 ## Reference
 ### Framework
 The mu-javascript-template is built on ExpressJS. Check [Express' Getting Started guide](https://expressjs.com/en/starter/basic-routing.html) to learn how to build a REST API in Express.
