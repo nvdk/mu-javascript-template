@@ -324,4 +324,18 @@ Use the mu-script `setup-ide` to install these without running in development mo
 Changes to dependencies in `package.json` will be picked up and an updated `package-lock.json` will be copied into the mounted sources provided `package-lock.json` is enabled.  Local packages are installed through the `package-lock.json` and the template's dependencies are merged in.  The `package-lock.json` thus only contains your own dependencies and should not conflict with future upgrades in the template.
 
 ### Custom build commands
-To execute custom bash statements during the image build (e.g. to install aditional system libraries), provide an `on-build.sh` script in the root of your service. It will be automatically picked up and executed by the Docker build. Make sure to return a non-zero return code in case of failure, in order to fail the build. For example using `set -eo` to exit on any non-zero statuses or if any part of a pipe fails.
+To execute custom bash statements during the image build (e.g. to install additional system libraries), provide an `on-build.sh` script in the root of your service. It will be automatically picked up and executed by the Docker build. Make sure to return a non-zero return code in case of failure, in order to fail the build. For example using `set -eo pipefail` to exit on any non-zero statuses or if any part of a pipe fails.
+
+The script runs before the dependencies of your service are installed and its sources are transpiled, so system libraries required by npm packages can be installed from it. Your sources are available in `/app`, but `node_modules` is not.
+
+The template is based on a slim Debian image which does not ship build tools nor the apt package lists. Run `apt-get update` before installing packages, and install `python3`, `make` and `g++` yourself if a dependency needs to compile native code:
+
+```bash
+#!/bin/bash
+set -eo pipefail
+apt-get update
+apt-get install -y --no-install-recommends python3 make g++
+rm -rf /var/lib/apt/lists/*
+```
+
+Up to v1.9, `on-build.sh` ran after the dependencies were installed and the sources were transpiled, on an image which included build tools.
