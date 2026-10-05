@@ -23,7 +23,7 @@ mkdir -p /config
 rm -f /usr/src/app/config-defaults.sha256
 if [[ "$(ls -A /app/config/ 2> /dev/null)" ]]
 then
-    cp -r /app/config/* /config/
+    cp -r /app/config/. /config/
     (cd /app/config && find . -type f -print0 | sort -z | xargs -0 -r sha256sum) > /usr/src/app/config-defaults.sha256
 fi
 
