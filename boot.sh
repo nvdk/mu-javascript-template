@@ -18,6 +18,9 @@ then
          --shell=none --no-process-group \
          --restart \
          /usr/src/app/run-development.sh
+elif [ "$NODE_ENV" == "test" ]
+then
+    exec /usr/src/app/run-test.sh "$@"
 elif [ "$NODE_ENV" == "production" ]
 then
     exec /usr/src/app/run-production.sh

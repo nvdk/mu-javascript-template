@@ -185,6 +185,31 @@ beforeExit( async () => {
 });
 ```
 
+### Run the tests of your microservice
+Set `NODE_ENV` to `test` and mount your sources in `/app` to run the tests of your microservice.  The sources are installed and transpiled as in development, after which the tests run from the transpiled sources, so they can import `mu` like your service does.
+
+```bash
+docker run --rm \
+       -v `pwd`:/app \
+       -e NODE_ENV=test \
+       semtech/mu-javascript-template
+```
+
+If your `package.json` contains a `test` script, it is executed with `npm test`, allowing you to use the test framework of your choice (add it to your `devDependencies`).  Otherwise the tests are run with the [Node.js test runner](https://nodejs.org/api/test.html), which picks up files such as `test/**/*.js` and `**/*.test.js`.
+
+```javascript
+// test/escape.test.js
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { sparqlEscapeUri } from 'mu';
+
+test('escapes a uri', () => {
+  assert.equal(sparqlEscapeUri('http://example.org/a'), '<http://example.org/a>');
+});
+```
+
+The container exits with the result of the tests, so it can be used in CI.  Importing `mu` does not start the server.  Code executing SPARQL queries needs a reachable `MU_SPARQL_ENDPOINT`, or must be mocked.
+
 ### Upgrade from v1 to v2
 Most microservices only need to bump the version in their `Dockerfile`. Check the following if your microservice relies on any of them:
 
@@ -287,7 +312,7 @@ Any file extending in .ts will be transpiled to a javascript file.  Sources are 
 #### Environment variables
 The following environment variables can be configured:
 
-  - `NODE_ENV` (default: `production`): either `"development"` or `"production"`. The environment to start the application in. The application live reloads on changes in `"development"` mode.
+  - `NODE_ENV` (default: `production`): either `"development"`, `"production"` or `"test"`. The environment to start the application in. The application live reloads on changes in `"development"` mode. `"test"` runs the tests of the service instead, see [Run the tests of your microservice](#run-the-tests-of-your-microservice).
   - `MAX_BODY_SIZE` (default: `100kb`): max size of the request body. See [ExpressJS documentation](https://expressjs.com/en/resources/middleware/body-parser.html#limit).
   - `HOST` (default: `0.0.0.0`): The hostname you want the service to bind to.
   - `PORT` (default: `80`): The port you want the service to bind to.
