@@ -1,6 +1,6 @@
 {
   "name": "mu-javascript-template",
-  "version": "2.0.0-beta.1",
+  "version": "2.0.0-beta.2",
   "description": "Template for mu services written in JavaScript",
   "type": "module",
   "repository": {
