@@ -14,7 +14,8 @@ RUN if [ "$TARGETPLATFORM" = "linux/amd64" ]; then \
     else \
       echo "Target platform \"$TARGETPLATFORM\" not supported, check watchexec" ; \
       exit 1; \
-    fi
+    fi \
+    && rm -f /tmp/watchexec-*.deb
 
 ENV MU_SPARQL_ENDPOINT='http://database:8890/sparql'
 ENV MU_APPLICATION_GRAPH='http://mu.semte.ch/application'

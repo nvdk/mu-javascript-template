@@ -43,6 +43,9 @@ fi
 
 ./transpile-sources.sh
 
+# Babel enables node's compile cache, which is of no use in the image
+rm -rf /tmp/node-compile-cache
+
 # Allow running as an arbitrary user in the root group (e.g. OpenShift), which
 # needs write access for development mode only.
 chgrp -R 0 /usr/src/app/app /usr/src/dist && chmod -R g=u /usr/src/app/app /usr/src/dist
