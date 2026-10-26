@@ -268,7 +268,7 @@ cp -r "$TEST_DIR/fixtures/service" "$WORK_DIR/locked"
 docker run --rm -i --entrypoint sh "$TEMPLATE_IMAGE" \
        -c 'mkdir /tmp/lock && cd /tmp/lock && cat > package.json && npm install --package-lock-only > /dev/null 2>&1 && cat package-lock.json' \
        < "$WORK_DIR/locked/package.json" > "$WORK_DIR/locked/package-lock.json"
-if output="$(echo "FROM $TEMPLATE_IMAGE" | docker build --progress=plain -t "$LOCKED_IMAGE" -f - "$WORK_DIR/locked" 2>&1)"; then
+if output="$(echo "FROM $TEMPLATE_IMAGE" | docker build --no-cache --progress=plain -t "$LOCKED_IMAGE" -f - "$WORK_DIR/locked" 2>&1)"; then
   pass "build with package-lock.json succeeds"
 else
   fail "build with package-lock.json succeeds" "$(echo "$output" | tail -20)"
@@ -287,7 +287,7 @@ log "Production build with outdated package-lock.json"
 cp -r "$WORK_DIR/locked" "$WORK_DIR/outdated"
 docker run --rm -i --entrypoint jq "$TEMPLATE_IMAGE" '.dependencies.pluralize = "^8.0.0"' \
        < "$WORK_DIR/locked/package.json" > "$WORK_DIR/outdated/package.json"
-if echo "FROM $TEMPLATE_IMAGE" | docker build -q -f - "$WORK_DIR/outdated" > /dev/null 2>&1; then
+if echo "FROM $TEMPLATE_IMAGE" | docker build --no-cache -q -f - "$WORK_DIR/outdated" > /dev/null 2>&1; then
   fail "build with outdated package-lock.json fails"
 else
   pass "build with outdated package-lock.json fails"
@@ -326,7 +326,7 @@ sleep 5
 check development "typescript change is picked up" '.typescript == "hi template"' /status
 check development "json config change is picked up" '.jsonConfig == "reloaded"' /status
 check development "new file and new dependency are picked up" '.word == "services"' /added
-running="$(docker exec "$ID-development" sh -c 'cat /proc/[0-9]*/cmdline 2> /dev/null | tr "\0" " " | grep -o "node --inspect[^ ]* ./start-server.js" | wc -l')"
+running="$(docker exec "$ID-development" sh -c 'for p in /proc/[0-9]*; do tr "\0" " " < $p/cmdline 2> /dev/null; echo; done | grep -c "^node .*start-server\.js"')"
 if [ "$running" == "1" ]; then
   pass "a single server process is running after reload"
 else
