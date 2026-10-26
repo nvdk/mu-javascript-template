@@ -26,6 +26,7 @@ FAILURES=0
 cleanup() {
   docker rm -f "${CONTAINERS[@]}" > /dev/null 2>&1 || true
   docker network rm "$NETWORK" > /dev/null 2>&1 || true
+  docker volume rm -f "$ID-config" > /dev/null 2>&1 || true
   docker rmi -f "$LOCKED_IMAGE" "$SERVICE_IMAGE" "$TEMPLATE_IMAGE" > /dev/null 2>&1 || true
   rm -rf "$WORK_DIR"
 }
@@ -262,6 +263,19 @@ docker cp "$TEST_DIR/fixtures/config/." "$ID-production-config:/config"
 docker start "$ID-production-config" > /dev/null
 wait_for production-config
 check_service production-config mounted
+
+log "Production mode as an arbitrary user with a read-only filesystem and ConfigMap"
+# Lay out the volume like Kubernetes mounts a ConfigMap: the files live in a
+# timestamped folder, linked through ..data
+docker volume create "$ID-config" > /dev/null
+create config-fill -v "$ID-config:/data" --entrypoint sh "$TEMPLATE_IMAGE" \
+       -c 'cd /data && ln -s ..2026_01_01_00_00_00.0 ..data && for f in ..data/*; do ln -s "$f" "$(basename "$f")"; done'
+docker cp "$TEST_DIR/fixtures/config/." "$ID-config-fill:/data/..2026_01_01_00_00_00.0"
+docker start -a "$ID-config-fill" > /dev/null
+create production-readonly --user 1001:0 --read-only --tmpfs /tmp -v "$ID-config:/config:ro" "$SERVICE_IMAGE"
+docker start "$ID-production-readonly" > /dev/null
+wait_for production-readonly
+check_service production-readonly mounted
 
 log "Production build with package-lock.json"
 cp -r "$TEST_DIR/fixtures/service" "$WORK_DIR/locked"

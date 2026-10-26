@@ -217,7 +217,7 @@ Most microservices only need to bump the version in their `Dockerfile`. Check th
 - **Slim base image**: the image no longer includes build tools such as `python3`, `make` and `g++`. Dependencies with native code need these installed from `on-build.sh`, see [Custom build commands](#custom-build-commands).
 - **`on-build.sh` runs earlier**: it runs before your dependencies are installed and your sources are transpiled, see [Custom build commands](#custom-build-commands).
 - **Failing builds fail**: errors while installing dependencies or transpiling sources now stop the image build. Previously these could produce an image which did not start.
-- **`/config` is resolved at runtime**: overrides which are imported keep working. Files read with `fs` should be read from `/config` directly, see [Migrating from earlier versions](#migrating-from-earlier-versions).
+- **`/config` may be read-only**: overrides are applied in a temporary folder at startup instead of in the image, see [Mounting `/config`](#mounting-config).
 - **`sparql-client-2` was removed**: `query` and `update` send requests with the built-in `fetch`.
   - `newSparqlClient` is no longer exported.
   - `sparql-client-2` is no longer installed. If your microservice imports it, add it to the dependencies in your own `package.json`.
@@ -327,20 +327,11 @@ When you import content from `./config/some-file`, the sources can be provided b
 
 You may provide default values for each of these files in the `config/` folder of your microservice. Files provided in `/config` take precedence; files which are not provided fall back to the microservice's defaults.
 
-Overrides are resolved at runtime when the module is imported, nothing is copied or rebuilt. `/config` may thus be mounted read-only, e.g. as a Kubernetes ConfigMap (symlinked files are supported).
+When `/config` differs from these defaults at startup, the built microservice is copied to a temporary folder (`$TMPDIR`, default `/tmp`) where the files of `/config` are added to its `config/` folder and transpiled. Only the sources of the microservice are copied, `node_modules` are shared with the image. Nothing in the image or in `/config` is changed, so `/config` may be mounted read-only, e.g. as a Kubernetes ConfigMap, and the container may run as an arbitrary user. With a read-only root filesystem, mount a writable volume (e.g. an `emptyDir`) on `/tmp`.
 
-- Only imports of files in the `config/` *folder* are redirected. A `config.js` next to your `app.js` (imported as `./config`) is never overridden.
-- A default `config/rules.js` may be overridden by `/config/rules.js`, `/config/rules.ts` or `/config/rules.coffee`. JavaScript, TypeScript and CoffeeScript overrides are transpiled in memory with the same Babel setup as the microservice's sources. `.mjs`, `.cjs` and `.json` files are loaded as is.
-- An override may import other files. Relative imports (`./helpers`) are looked up in `/config` first and fall back to the defaults of the microservice. Other imports (`mu`, npm packages) resolve as if the file lived in the microservice's `config/` folder.
-- Only *imports* are redirected. Code reading files with `fs` should read them from `/config` directly. The microservice's defaults are available in `/config` when nothing is mounted.
-
-#### Migrating from earlier versions
-Up to v1.9, the contents of `/config` were copied into the microservice's sources and everything was transpiled again at startup. This required a writable image and `/config`, which fails on platforms such as OpenShift that run containers as an arbitrary user with read-only configuration.
-
-Overrides which are imported keep working without changes. Watch out for:
-
-- Files in `/config` which the microservice reads with `fs` from its own folder (e.g. `fs.readFileSync('./config/query.sparql')` or relative to `__dirname`). These no longer pick up the override, read `/config/query.sparql` instead. The template logs a warning shortly after startup for overrides of a default which were not loaded as a module.
-- Importing `./config` when the microservice has both a `config.js` file and a `config/` folder never worked: the import is rewritten to `./config/index.js`. Import `./config.js` explicitly.
+- A default `config/rules.js` may be overridden by `/config/rules.js`, `/config/rules.ts` or `/config/rules.coffee`.
+- Files read with `fs` from the microservice's `config/` folder (e.g. `fs.readFileSync('./config/query.sparql')`) pick up the overrides as well.
+- Importing `./config` when the microservice has both a `config.js` file and a `config/` folder doesn't work: the import is rewritten to `./config/index.js`. Import `./config.js` explicitly.
 
 ### Logging
 The verbosity of logging can be configured through following environment variables:
@@ -349,7 +340,6 @@ The verbosity of logging can be configured through following environment variabl
 - `LOG_SPARQL_QUERIES`: Logging of executed SPARQL read queries (default: `undefined`). Overrules `LOG_SPARQL_ALL`.
 - `LOG_SPARQL_UPDATES`: Logging of executed SPARQL update queries (default `undefined`). Overrules `LOG_SPARQL_ALL`.
 - `DEBUG_AUTH_HEADERS`: Debugging of [mu-authorization](https://github.com/mu-semtech/mu-authorization) access-control related headers (default `true`)
-- `MU_CONFIG_WARN_DELAY_MS`: Delay after startup before warning about overrides in `/config` which were not loaded (default `10000`). Set to `-1` to disable.
 
 Following values are considered true: [`"true"`, `"TRUE"`, `"1"`].
 
