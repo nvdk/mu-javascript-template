@@ -34,7 +34,7 @@ then
     npm_install_command=install
   fi
 fi
-./npm-install-dependencies.sh production $npm_install_command
+./npm-install-dependencies.sh production $npm_install_command || exit 1
 ./validate-package-json.sh
 
 ./transpile-sources.sh
