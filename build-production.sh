@@ -38,3 +38,7 @@ fi
 ./validate-package-json.sh
 
 ./transpile-sources.sh
+
+# Allow running as an arbitrary user in the root group (e.g. OpenShift), which
+# needs write access for development mode only.
+chgrp -R 0 /usr/src/app/app /usr/src/dist && chmod -R g=u /usr/src/app/app /usr/src/dist
