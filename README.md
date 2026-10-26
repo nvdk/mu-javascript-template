@@ -327,7 +327,7 @@ When you import content from `./config/some-file`, the sources can be provided b
 
 You may provide default values for each of these files in the `config/` folder of your microservice. Files provided in `/config` take precedence; files which are not provided fall back to the microservice's defaults.
 
-When `/config` differs from these defaults at startup, the built microservice is copied to a temporary folder (`$TMPDIR`, default `/tmp`) where the files of `/config` are added to its `config/` folder and transpiled. Only the sources of the microservice are copied, `node_modules` are shared with the image. Nothing in the image or in `/config` is changed, so `/config` may be mounted read-only, e.g. as a Kubernetes ConfigMap, and the container may run as an arbitrary user. With a read-only root filesystem, mount a writable volume (e.g. an `emptyDir`) on `/tmp`.
+When `/config` differs from these defaults at startup, the built microservice is copied to a temporary folder (`$TMPDIR`, default `/tmp`) where the files of `/config` are added to its `config/` folder and transpiled. Only the sources of the microservice are copied, `node_modules` are shared with the image. Nothing in the image or in `/config` is changed, so `/config` may be mounted read-only, e.g. as a Kubernetes ConfigMap, and the container may run as an arbitrary user, as on OpenShift. With a read-only root filesystem, mount a writable volume (e.g. an `emptyDir`) on `/tmp`.
 
 - A default `config/rules.js` may be overridden by `/config/rules.js`, `/config/rules.ts` or `/config/rules.coffee`.
 - Files read with `fs` from the microservice's `config/` folder (e.g. `fs.readFileSync('./config/query.sparql')`) pick up the overrides as well.
