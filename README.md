@@ -185,6 +185,44 @@ beforeExit( async () => {
 });
 ```
 
+### Run the tests of your microservice
+Set `NODE_ENV` to `test` and mount your sources in `/app` to run the tests of your microservice.  The sources are installed and transpiled as in development, after which the tests run from the transpiled sources, so they can import `mu` like your service does.
+
+```bash
+docker run --rm \
+       -v `pwd`:/app \
+       -e NODE_ENV=test \
+       semtech/mu-javascript-template
+```
+
+If your `package.json` contains a `test` script, it is executed with `npm test`, allowing you to use the test framework of your choice (add it to your `devDependencies`).  Otherwise the tests are run with the [Node.js test runner](https://nodejs.org/api/test.html), which picks up files such as `test/**/*.js` and `**/*.test.js`.
+
+```javascript
+// test/escape.test.js
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { sparqlEscapeUri } from 'mu';
+
+test('escapes a uri', () => {
+  assert.equal(sparqlEscapeUri('http://example.org/a'), '<http://example.org/a>');
+});
+```
+
+The container exits with the result of the tests, so it can be used in CI.  Importing `mu` does not start the server.  Code executing SPARQL queries needs a reachable `MU_SPARQL_ENDPOINT`, or must be mocked.
+
+### Upgrade from v1 to v2
+Most microservices only need to bump the version in their `Dockerfile`. Check the following if your microservice relies on any of them:
+
+- **Node.js 24**: the template runs on Node.js 24 (was 20) and Babel and TypeScript target it. Make sure your dependencies support Node.js 24.
+- **Slim base image**: the image no longer includes build tools such as `python3`, `make` and `g++`. Dependencies with native code need these installed from `on-build.sh`, see [Custom build commands](#custom-build-commands).
+- **`on-build.sh` runs earlier**: it runs before your dependencies are installed and your sources are transpiled, see [Custom build commands](#custom-build-commands).
+- **Failing builds fail**: errors while installing dependencies or transpiling sources now stop the image build. Previously these could produce an image which did not start.
+- **`/config` may be read-only**: overrides are applied in a temporary folder at startup instead of in the image, see [Mounting `/config`](#mounting-config).
+- **`sparql-client-2` was removed**: `query` and `update` send requests with the built-in `fetch`.
+  - `newSparqlClient` is no longer exported.
+  - `sparql-client-2` is no longer installed. If your microservice imports it, add it to the dependencies in your own `package.json`.
+  - A sudo query from a microservice without `ALLOW_MU_AUTH_SUDO` throws an `Error` instead of a string.
+
 ## Reference
 ### Framework
 The mu-javascript-template is built on ExpressJS. Check [Express' Getting Started guide](https://expressjs.com/en/starter/basic-routing.html) to learn how to build a REST API in Express.
@@ -261,7 +299,7 @@ app.use(errorHandler)
 ### Transpiled languages
 The template has second-class support for transpiling TypeScript and CoffeeScript.  These are considered second-class and support may be removed in a minor release but not in a patch release.
 
-Overwriting files through the config folder may require you to stick to the original format.  There are currently no guarantees on this.
+Files in the config folder may be overridden in another of these formats, see [Mounting `/config`](#mounting-config).
 
 #### Coffeescript
 Any file extending to .coffee will be transpiled from coffeescript to javascript file.  Sourcemaps are included for debugging.
@@ -274,7 +312,7 @@ Any file extending in .ts will be transpiled to a javascript file.  Sources are 
 #### Environment variables
 The following environment variables can be configured:
 
-  - `NODE_ENV` (default: `production`): either `"development"` or `"production"`. The environment to start the application in. The application live reloads on changes in `"development"` mode.
+  - `NODE_ENV` (default: `production`): either `"development"`, `"production"` or `"test"`. The environment to start the application in. The application live reloads on changes in `"development"` mode. `"test"` runs the tests of the service instead, see [Run the tests of your microservice](#run-the-tests-of-your-microservice).
   - `MAX_BODY_SIZE` (default: `100kb`): max size of the request body. See [ExpressJS documentation](https://expressjs.com/en/resources/middleware/body-parser.html#limit).
   - `HOST` (default: `0.0.0.0`): The hostname you want the service to bind to.
   - `PORT` (default: `80`): The port you want the service to bind to.
@@ -287,7 +325,13 @@ You may let users extend the microservice with code.
 
 When you import content from `./config/some-file`, the sources can be provided by the end user in `/config/some-file` (even in production mode).
 
-You may provide default values for each of these files. The sources provided by the app are merged with the sources provided by the microservice, with the app's configuration taking precedence.
+You may provide default values for each of these files in the `config/` folder of your microservice. Files provided in `/config` take precedence; files which are not provided fall back to the microservice's defaults.
+
+When `/config` differs from these defaults at startup, the built microservice is copied to a temporary folder (`$TMPDIR`, default `/tmp`) where the files of `/config` are added to its `config/` folder and transpiled. Only the sources of the microservice are copied, `node_modules` are shared with the image. Nothing in the image or in `/config` is changed, so `/config` may be mounted read-only, e.g. as a Kubernetes ConfigMap, and the container may run as an arbitrary user. With a read-only root filesystem, mount a writable volume (e.g. an `emptyDir`) on `/tmp`.
+
+- A default `config/rules.js` may be overridden by `/config/rules.js`, `/config/rules.ts` or `/config/rules.coffee`.
+- Files read with `fs` from the microservice's `config/` folder (e.g. `fs.readFileSync('./config/query.sparql')`) pick up the overrides as well.
+- Importing `./config` when the microservice has both a `config.js` file and a `config/` folder doesn't work: the import is rewritten to `./config/index.js`. Import `./config.js` explicitly.
 
 ### Logging
 The verbosity of logging can be configured through following environment variables:
@@ -308,4 +352,18 @@ Use the mu-script `setup-ide` to install these without running in development mo
 Changes to dependencies in `package.json` will be picked up and an updated `package-lock.json` will be copied into the mounted sources provided `package-lock.json` is enabled.  Local packages are installed through the `package-lock.json` and the template's dependencies are merged in.  The `package-lock.json` thus only contains your own dependencies and should not conflict with future upgrades in the template.
 
 ### Custom build commands
-To execute custom bash statements during the image build (e.g. to install aditional system libraries), provide an `on-build.sh` script in the root of your service. It will be automatically picked up and executed by the Docker build.
+To execute custom bash statements during the image build (e.g. to install additional system libraries), provide an `on-build.sh` script in the root of your service. It will be automatically picked up and executed by the Docker build. Make sure to return a non-zero return code in case of failure, in order to fail the build. For example using `set -eo pipefail` to exit on any non-zero statuses or if any part of a pipe fails.
+
+The script runs before the dependencies of your service are installed and its sources are transpiled, so system libraries required by npm packages can be installed from it. Your sources are available in `/app`, but `node_modules` is not.
+
+The template is based on a slim Debian image which does not ship build tools nor the apt package lists. Run `apt-get update` before installing packages, and install `python3`, `make` and `g++` yourself if a dependency needs to compile native code:
+
+```bash
+#!/bin/bash
+set -eo pipefail
+apt-get update
+apt-get install -y --no-install-recommends python3 make g++
+rm -rf /var/lib/apt/lists/*
+```
+
+Up to v1.9, `on-build.sh` ran after the dependencies were installed and the sources were transpiled, on an image which included build tools.

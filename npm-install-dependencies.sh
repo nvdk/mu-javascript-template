@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# Fail build on error
+set -eo pipefail
+
 source ./helpers.sh
 
 environment=$1
@@ -17,8 +21,7 @@ fi
 if [ "$npm_install_command" == "ci" ]
 then
   echo "Installing dependencies from package-lock.json"
-  npm ci
-  if [ "$?" != "0" ]
+  if ! npm ci
   then
     echo "npm ci failed. Remove package-lock.json and restart."
     exit 1 # may not exit the full template
@@ -26,8 +29,7 @@ then
 elif [ "$npm_install_command" == "install" ]
 then
   echo "Installing dependencies from package.json"
-  npm install
-  if [ "$?" != "0" ]
+  if ! npm install
   then
     echo "npm install failed."
     exit 1 # may not exit the full template

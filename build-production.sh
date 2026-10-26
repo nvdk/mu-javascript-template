@@ -6,6 +6,9 @@
 # so we can warn at runtime in case developers accidentally mount
 # sources without setting the development environment variable.
 
+# Fail build on error
+set -eo pipefail
+
 source ./helpers.sh
 
 # Copy sources from /app to where they can be built
@@ -13,12 +16,13 @@ cd /usr/src/app
 rm -rf ./app /app.original
 
 docker-rsync --delete --exclude node_modules /app/ /usr/src/app/app/
-mkdir -p /config /config.original
 
+# Ship the default configuration in /config for services reading it directly.
+# run-production.sh only applies /config when it differs from these defaults.
+mkdir -p /config
 if [[ "$(ls -A /app/config/ 2> /dev/null)" ]]
 then
-    cp -r /app/config/* /config.original/
-    cp -r /app/config/* /config/
+    cp -r /app/config/. /config/
 fi
 
 cp -r /app /app.original
@@ -34,7 +38,14 @@ then
     npm_install_command=install
   fi
 fi
-./npm-install-dependencies.sh production $npm_install_command || exit 1
+./npm-install-dependencies.sh production $npm_install_command
 ./validate-package-json.sh
 
 ./transpile-sources.sh
+
+# Babel enables node's compile cache, which is of no use in the image
+rm -rf /tmp/node-compile-cache
+
+# Allow running as an arbitrary user in the root group (e.g. OpenShift), which
+# needs write access for development mode only.
+chgrp -R 0 /usr/src/app/app /usr/src/dist && chmod -R g=u /usr/src/app/app /usr/src/dist

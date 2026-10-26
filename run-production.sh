@@ -1,46 +1,63 @@
 #!/bin/bash
 
+# Production startup doesn't write to the image or to /config, both may be
+# read-only (e.g. an arbitrary UID on OpenShift, /config mounted from a
+# ConfigMap).  When /config overrides the default configuration, the service
+# sources are copied to a temporary folder where the overrides are transpiled.
+
 diff -rq /app /app.original > /dev/null
 APP_FILES_CHANGED="$?"
-diff -rq /config /config.original > /dev/null
-CONFIG_FILES_CHANGED="$?"
 
 if [ ! -f /usr/src/dist/app.js ]
 then
     echo "No built sources found.  If you mount new sources, please set the NODE_ENV=\"development\" environment variable."
     sleep 5;
     exit 1;
-elif [ $APP_FILES_CHANGED != "0" ]
+elif [ $APP_FILES_CHANGED == "1" ]
 then
     echo "Built sources are not the same as sources available in /app.  If you mount new sources, please set the NODE_ENV=\"development\" environment variable."
     sleep 5;
     exit 1;
-elif [ $CONFIG_FILES_CHANGED != "0" ]
+elif [ $APP_FILES_CHANGED != "0" ]
 then
-    echo "Rebuilding sources to include /config."
+    echo "[WARNING] Could not verify sources in /app match the built sources (e.g. unreadable files).  Continuing."
+fi
 
-    # move new configuration into app for transpilation
-    if [[ "$(ls -A /config 2> /dev/null)" ]]
-    then
-        cp -Rf /config/* /usr/src/app/app/config/
-    fi
-
-    # make a backup of the used configuration so we can detect changes
-    rm -Rf /config.original
-    mkdir /config.original
-    if [[ "$(ls -A /config 2> /dev/null)" ]]
-    then
-        cp -Rf /config/* /config.original
-    fi
-
-    # transpile sources
-    cd /usr/src/app/
-    ./transpile-sources.sh
-
-    # boot transpiled sources
-    cd /usr/src/dist/
-    exec node ./start-server.js
-else
+# Kubernetes mounts ConfigMaps with ..data and ..<timestamp> entries next to
+# the configuration files, these are not part of the configuration.
+if [[ -z "$(ls -A /config 2> /dev/null)" ]] \
+       || diff -rq --exclude='..*' /config /usr/src/app/app/config > /dev/null 2>&1
+then
     cd /usr/src/dist/
     exec node ./start-server.js
 fi
+
+echo "Applying configuration overrides from /config."
+set -eo pipefail
+
+RUN_DIR="$(mktemp -d "${TMPDIR:-/tmp}/mu-service-XXXXXX")"
+CONFIG_SOURCES="$RUN_DIR/.config-sources"
+
+# The service sources are small, the node_modules are shared with the image.
+rsync -rl --exclude /node_modules /usr/src/dist/ "$RUN_DIR/"
+ln -s /usr/src/dist/node_modules "$RUN_DIR/node_modules"
+
+# Overrides replace the defaults file by file.
+rsync -rL --exclude '..*' /config/ "$CONFIG_SOURCES/"
+
+# A compile cache would only fill up /tmp, which may be in memory.
+pushd "$CONFIG_SOURCES" > /dev/null
+NODE_DISABLE_COMPILE_CACHE=1 NODE_PATH="/usr/src/app/node_modules/" /usr/src/app/node_modules/.bin/coffee -M --compile -t .
+NODE_DISABLE_COMPILE_CACHE=1 NODE_PATH="/usr/src/app/node_modules/" /usr/src/app/node_modules/.bin/babel \
+  . \
+  --out-dir "$RUN_DIR/config" \
+  --copy-files \
+  --source-maps inline \
+  --config-file "/usr/src/app/babel.config.json" \
+  --extensions ".ts,.js" \
+  > /dev/null
+popd > /dev/null
+rm -rf "$CONFIG_SOURCES"
+
+cd "$RUN_DIR"
+exec node ./start-server.js
