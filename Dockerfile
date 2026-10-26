@@ -1,4 +1,4 @@
-FROM node:22-bookworm-slim
+FROM node:24.22-bookworm-slim
 
 LABEL maintainer="team@semantic.works"
 

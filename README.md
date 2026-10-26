@@ -213,7 +213,7 @@ The container exits with the result of the tests, so it can be used in CI.  Impo
 ### Upgrade from v1 to v2
 Most microservices only need to bump the version in their `Dockerfile`. Check the following if your microservice relies on any of them:
 
-- **Node.js 22**: the template runs on Node.js 22 (was 20) and Babel and TypeScript target it. Make sure your dependencies support Node.js 22.
+- **Node.js 24**: the template runs on Node.js 24 (was 20) and Babel and TypeScript target it. Make sure your dependencies support Node.js 24.
 - **Slim base image**: the image no longer includes build tools such as `python3`, `make` and `g++`. Dependencies with native code need these installed from `on-build.sh`, see [Custom build commands](#custom-build-commands).
 - **`on-build.sh` runs earlier**: it runs before your dependencies are installed and your sources are transpiled, see [Custom build commands](#custom-build-commands).
 - **Failing builds fail**: errors while installing dependencies or transpiling sources now stop the image build. Previously these could produce an image which did not start.
